@@ -28,18 +28,14 @@ import Grid from '@material-ui/core/Grid';
 import Typography from '@material-ui/core/Typography';
 import FolderIcon from '@material-ui/icons/Folder';
 import DeleteIcon from '@material-ui/icons/Delete';
-function generate(element) {
-  return [0, 1, 2].map(value =>
-    React.cloneElement(element, {
-      key: value,
-    }),
-  );
-}
+
 class FileUpload extends Component {
   constructor() {
     super();
     this.onDrop = files => {
-      this.setState({ files });
+      var newFiles = this.state.files;
+      files.forEach(el => newFiles.push(el));
+      this.setState({ files: newFiles });
     };
     this.state = {
       files: [],
@@ -96,7 +92,7 @@ class FileUpload extends Component {
     console.log('user', firebase.auth().currentUser.toJSON());
     console.log(
       'access token ',
-      firebase.auth().currentUser.toJSON().stsTokenManager.refreshToken,
+      firebase.auth().currentUser.toJSON().stsTokenManager.accessToken,
     );
     firebase
       .auth()
@@ -106,19 +102,15 @@ class FileUpload extends Component {
         token = response.token;
         console.log('id token ', token);
       });
-    /*firebase
+
+    firebase
       .auth()
-      .currentUser.getIdTokenResult()
+      .currentUser.getIdToken()
       .then(response => {
-        console.log('token : ', response.token);
-        token = response.token;
-        const config = {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            Authorization: `Bearer ${token}`,
-          },
-        };
-        axios
+        console.log('tokeResultn : ', response);
+        token = response;
+      });
+    /*axios
           .post(
             'https://api.whizz.app/api/v1/client/document/upload',
             formData,
@@ -131,27 +123,36 @@ class FileUpload extends Component {
           .catch(function(error) {
             console.log(error);
             console.log(error.message);
-          });
-      });*/
-    /*axios
-      .post('https://api.whizz.app/api/v1/client/user/get')
-      .then(function(response) {
-        console.log('file uploaded');
-        console.log(response);
-      })
-      .catch(function(error) {
-        console.log(error);
-        console.log(error.message);
-      });*/
-
+          });*/
     event.preventDefault();
+  }
+  deletefile(name) {
+    var files = this.state.files;
+    files = files.filter(el => {
+      return el.name !== name;
+    });
+    this.setState({ files });
   }
 
   render() {
     const files = this.state.files.map(file => (
-      <li key={file.name}>
-        {file.name} - {file.size} bytes
-      </li>
+      <ListItem key={file.name}>
+        <ListItemAvatar>
+          <Avatar>
+            <FolderIcon />
+          </Avatar>
+        </ListItemAvatar>
+        <ListItemText primary={file.name} secondary={`${file.size} bytes`} />
+        <ListItemSecondaryAction>
+          <IconButton
+            onClick={() => this.deletefile(file.name)}
+            edge='end'
+            aria-label='delete'
+          >
+            <DeleteIcon />
+          </IconButton>
+        </ListItemSecondaryAction>
+      </ListItem>
     ));
     const dropzoneStyle = {
       width: '20%',
@@ -162,82 +163,58 @@ class FileUpload extends Component {
       return <Redirect to={this.state.redirect} />;
     }
     return (
-      <div className='App'>
-        <List>
-          {generate(
-            <ListItem>
-              <ListItemAvatar>
-                <Avatar>
-                  <FolderIcon />
-                </Avatar>
-              </ListItemAvatar>
-              <ListItemText
-                primary='Single-line item'
-                secondary='Secondary text'
+      <div className='App' style={{ flex: 1, justifyContent: 'center' }}>
+        <Dropzone onDrop={this.onDrop}>
+          {({ getRootProps, getInputProps }) => (
+            <section className='container'>
+              <div {...getRootProps({ className: 'dropzone' })}>
+                <Paper style={{ padding: 50 }}>
+                  <input {...getInputProps()} />
+
+                  <p>Drag and drop some files here, or click to select files</p>
+                </Paper>
+              </div>
+
+              <aside>
+                <h4>Files</h4>
+                <List>{files}</List>
+              </aside>
+            </section>
+          )}
+        </Dropzone>
+        {this.state.files.length > 0 && (
+          <div>
+            <div style={{ margin: 10 }}>
+              <TextField
+                label='grade'
+                variant='outlined'
+                name='grade'
+                type='number'
+                value={this.state.grade}
+                onChange={this.handleChangeGrade}
               />
-              <ListItemSecondaryAction>
-                <IconButton edge='end' aria-label='delete'>
-                  <DeleteIcon />
-                </IconButton>
-              </ListItemSecondaryAction>
-            </ListItem>,
-          )}
-        </List>
-        <form onSubmit={this.handleSubmit}>
-          <Dropzone onDrop={this.onDrop} style={dropzoneStyle}>
-            {({ getRootProps, getInputProps }) => (
-              <section className='container'>
-                <div {...getRootProps({ className: 'dropzone' })}>
-                  <Paper style={{ padding: 50 }}>
-                    <input {...getInputProps()} />
-
-                    <p>
-                      Drag and drop some files here, or click to select files
-                    </p>
-                  </Paper>
-                </div>
-
-                <aside>
-                  <h4>Files</h4>
-                  <ul>{files}</ul>
-                </aside>
-              </section>
-            )}
-          </Dropzone>
-          {files.length > 0 && (
-            <div>
-              <div style={{ margin: 10 }}>
-                <TextField
-                  label='grade'
-                  variant='outlined'
-                  name='grade'
-                  type='number'
-                  value={this.state.grade}
-                  onChange={this.handleChangeGrade}
-                />
-              </div>
-
-              <div style={{ margin: 10 }}>
-                <TextField
-                  label='name'
-                  variant='outlined'
-                  value={this.state.name}
-                  onChange={this.handleChangeName}
-                />
-              </div>
-              <div style={{ margin: 10 }}>
-                <TextField
-                  label='subject'
-                  variant='outlined'
-                  value={this.state.subject}
-                  onChange={this.handleChangeSubject}
-                />
-              </div>
-
-              <Button onClick={this.handleSubmit}>Upload</Button>
             </div>
-          )}
-        </form>
+
+            <div style={{ margin: 10 }}>
+              <TextField
+                label='name'
+                variant='outlined'
+                value={this.state.name}
+                onChange={this.handleChangeName}
+              />
+            </div>
+            <div style={{ margin: 10 }}>
+              <TextField
+                label='subject'
+                variant='outlined'
+                value={this.state.subject}
+                onChange={this.handleChangeSubject}
+              />
+            </div>
+
+            <Button onClick={this.handleSubmit}>Upload</Button>
+          </div>
+        )}
       </div>
     );
   }
