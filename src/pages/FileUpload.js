@@ -13,6 +13,8 @@ import {
   List,
   ListItem,
   ListItemAvatar,
+  Dialog,
+  CircularProgress,
 } from '@material-ui/core';
 import Dropzone from 'react-dropzone';
 import { makeStyles } from '@material-ui/core/styles';
@@ -28,6 +30,7 @@ import Grid from '@material-ui/core/Grid';
 import Typography from '@material-ui/core/Typography';
 import FolderIcon from '@material-ui/icons/Folder';
 import DeleteIcon from '@material-ui/icons/Delete';
+import { green } from 'color-name';
 
 class FileUpload extends Component {
   constructor() {
@@ -35,7 +38,7 @@ class FileUpload extends Component {
     this.onDrop = files => {
       var newFiles = this.state.files;
       files.forEach(el => newFiles.push(el));
-      this.setState({ files: newFiles });
+      this.setState({ files: newFiles, successMsg: false });
     };
     this.state = {
       files: [],
@@ -44,6 +47,13 @@ class FileUpload extends Component {
       name: '',
       subject: '',
       redirect: null,
+      DialogOpen: false,
+      uploadBtnColor: '',
+      uploadBtnTextColor: '',
+      grade_error: false,
+      name_error: false,
+      subject_error: false,
+      successMsg: false,
     };
 
     this.handleChangeFiles = this.handleChangeFiles.bind(this);
@@ -64,22 +74,34 @@ class FileUpload extends Component {
     console.log(files.length);
     console.log(files[0]);
     files.forEach(element => console.log(element));
-    this.setState({ files });
+    this.setState({
+      files,
+      successMsg: false,
+    });
   }
   handleChangeName(event) {
-    this.setState({ name: event.target.value });
+    this.setState({
+      name: event.target.value,
+      name_error: false,
+    });
   }
   handleChangeGrade(event) {
-    this.setState({ grade: event.target.value });
+    this.setState({
+      grade: event.target.value,
+      grade_error: false,
+    });
   }
   handleChangeSubject(event) {
-    this.setState({ subject: event.target.value });
+    this.setState({
+      subject: event.target.value,
+      subject_error: false,
+    });
   }
   async uploadfiles(el, config) {
     const formData = new FormData();
     formData.append('file0', el);
 
-    axios
+    return axios
       .post(
         'https://staging.api.whizz.app/api/v1/client/document/upload',
         formData,
@@ -93,18 +115,63 @@ class FileUpload extends Component {
         var filesIds = this.state.filesIds;
         filesIds.push(fileId);
         this.setState({ filesIds });
+        var files = this.state.files;
+        var newfiles = files.filter(old_el => {
+          return el.name !== old_el.name;
+        });
+        this.setState({ files: newfiles });
       })
       .catch(function(error) {
         console.log(error);
         console.log(error.message);
       });
   }
-  async addDocument() {}
+  async addDocument(token) {
+    const { filesIds, grade, name, subject } = this.state;
+    axios
+      .post('https://staging.api.whizz.app/api/v1/client/document/add', null, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`,
+        },
+        params: {
+          files: filesIds,
+          grade: grade,
+          name: name,
+          subject: subject,
+        },
+      })
+      .then(response => {
+        console.log('document add response ', response);
+      })
+      .catch(error => {
+        console.log('document add error ', error);
+      });
+  }
+  async asyncForEach(array, callback) {
+    for (let index = 0; index < array.length; index++) {
+      await callback(array[index], index, array);
+    }
+  }
   handleSubmit(event) {
+    const { grade, subject, name } = this.state;
+    if (grade == '') {
+      this.setState({ grade_error: true });
+      return;
+    }
+    if (name == '') {
+      this.setState({ name_error: true });
+      return;
+    }
+    if (subject == '') {
+      this.setState({ subject_error: true });
+      return;
+    }
+    this.setState({ DialogOpen: true });
     firebase
       .auth()
       .currentUser.getIdToken()
-      .then(response => {
+      .then(async response => {
         console.log('token : ', response);
         var token = response;
         const config = {
@@ -114,33 +181,44 @@ class FileUpload extends Component {
           },
         };
         var files = this.state.files;
-        files.forEach(async el => {
-          await this.uploadfiles(el, config);
-        });
-        const { filesIds, grade, name, subject } = this.state;
-        axios
-          .post(
-            'https://staging.api.whizz.app/api/v1/client/document/add',
-            null,
-            {
-              headers: {
-                'Content-Type': 'multipart/form-data',
-                Authorization: `Bearer ${token}`,
-              },
-              params: {
-                files: filesIds,
-                grade: grade,
-                name: name,
-                subject: subject,
-              },
-            },
-          )
-          .then(response => {
-            console.log('document add response ', response);
-          })
-          .catch(error => {
-            console.log('document add error ', error);
+        const startUpload = async () => {
+          await this.asyncForEach(files, async el => {
+            await this.uploadfiles(el, config);
+            console.log(el);
           });
+          console.log('it is over!!!');
+          const { filesIds, grade, name, subject } = this.state;
+          axios
+            .post(
+              'https://staging.api.whizz.app/api/v1/client/document/add',
+              null,
+              {
+                headers: {
+                  'Content-Type': 'multipart/form-data',
+                  Authorization: `Bearer ${token}`,
+                },
+                params: {
+                  files: filesIds,
+                  grade: grade,
+                  name: name,
+                  subject: subject,
+                },
+              },
+            )
+            .then(response => {
+              console.log('document add response ', response);
+              this.setState({
+                DialogOpen: false,
+                uploadBtnColor: '#5cd65c',
+                uploadBtnTextColor: '#FFFFFF',
+                successMsg: true,
+              });
+            })
+            .catch(error => {
+              console.log('document add error ', error);
+            });
+        };
+        startUpload();
       });
 
     event.preventDefault();
@@ -150,7 +228,7 @@ class FileUpload extends Component {
     files = files.filter(el => {
       return el.name !== name;
     });
-    this.setState({ files });
+    this.setState({ files, uploadBtnColor: '', uploadBtnTextColor: '' });
   }
 
   render() {
@@ -183,6 +261,11 @@ class FileUpload extends Component {
     }
     return (
       <div className='App' style={{ flex: 1, justifyContent: 'center' }}>
+        <Dialog
+          fullWidth={true}
+          open={this.state.DialogOpen}
+          aria-labelledby='max-width-dialog-title'
+        ></Dialog>
         <Dropzone onDrop={this.onDrop}>
           {({ getRootProps, getInputProps }) => (
             <section className='container'>
@@ -196,15 +279,20 @@ class FileUpload extends Component {
 
               <aside>
                 <h4>Files</h4>
+
                 <List>{files}</List>
               </aside>
             </section>
           )}
         </Dropzone>
+        {this.state.successMsg && (
+          <h5>Your files have been successfully uploaded!</h5>
+        )}
         {this.state.files.length > 0 && (
           <div>
             <div style={{ margin: 10 }}>
               <TextField
+                error={this.state.grade_error}
                 label='grade'
                 variant='outlined'
                 name='grade'
@@ -216,6 +304,7 @@ class FileUpload extends Component {
 
             <div style={{ margin: 10 }}>
               <TextField
+                error={this.state.name_error}
                 label='name'
                 variant='outlined'
                 value={this.state.name}
@@ -224,6 +313,7 @@ class FileUpload extends Component {
             </div>
             <div style={{ margin: 10 }}>
               <TextField
+                error={this.state.subject_error}
                 label='subject'
                 variant='outlined'
                 value={this.state.subject}
@@ -231,7 +321,21 @@ class FileUpload extends Component {
               />
             </div>
 
-            <Button onClick={this.handleSubmit}>Upload</Button>
+            <div style={{ position: 'relative' }}>
+              <Button onClick={this.handleSubmit}>Upload</Button>
+              {this.state.DialogOpen && (
+                <CircularProgress
+                  style={{
+                    color: '#000000',
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    marginTop: -20,
+                    marginLeft: -20,
+                  }}
+                ></CircularProgress>
+              )}
+            </div>
           </div>
         )}
       </div>
