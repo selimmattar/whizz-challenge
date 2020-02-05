@@ -75,55 +75,74 @@ class FileUpload extends Component {
   handleChangeSubject(event) {
     this.setState({ subject: event.target.value });
   }
-
-  handleSubmit(event) {
-    var files = this.state.files;
-    files.forEach(element => console.log(element));
+  async uploadfiles(el, config) {
     const formData = new FormData();
-    formData.append('file0', files[0]);
-    var token = firebase.auth().currentUser.refreshToken;
-    const config = {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        Authorization: `Bearer ${token}`,
-      },
-    };
-    console.log('aaaaaaaaaaaaaaaaaaaa');
-    console.log('user', firebase.auth().currentUser.toJSON());
-    console.log(
-      'access token ',
-      firebase.auth().currentUser.toJSON().stsTokenManager.accessToken,
-    );
-    firebase
-      .auth()
-      .currentUser.getIdTokenResult()
-      .then(response => {
-        console.log('token : ', response.token);
-        token = response.token;
-        console.log('id token ', token);
-      });
+    formData.append('file0', el);
 
+    axios
+      .post(
+        'https://staging.api.whizz.app/api/v1/client/document/upload',
+        formData,
+        config,
+      )
+      .then(response => {
+        console.log('file uploaded');
+        console.log('response ', response);
+        console.log('response data ', response.data);
+        var fileId = response.data;
+        var filesIds = this.state.filesIds;
+        filesIds.push(fileId);
+        this.setState({ filesIds });
+      })
+      .catch(function(error) {
+        console.log(error);
+        console.log(error.message);
+      });
+  }
+  async addDocument() {}
+  handleSubmit(event) {
     firebase
       .auth()
       .currentUser.getIdToken()
       .then(response => {
-        console.log('tokeResultn : ', response);
-        token = response;
-      });
-    /*axios
+        console.log('token : ', response);
+        var token = response;
+        const config = {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`,
+          },
+        };
+        var files = this.state.files;
+        files.forEach(async el => {
+          await this.uploadfiles(el, config);
+        });
+        const { filesIds, grade, name, subject } = this.state;
+        axios
           .post(
-            'https://api.whizz.app/api/v1/client/document/upload',
-            formData,
-            config,
+            'https://staging.api.whizz.app/api/v1/client/document/add',
+            null,
+            {
+              headers: {
+                'Content-Type': 'multipart/form-data',
+                Authorization: `Bearer ${token}`,
+              },
+              params: {
+                files: filesIds,
+                grade: grade,
+                name: name,
+                subject: subject,
+              },
+            },
           )
-          .then(function(response) {
-            console.log('file uploaded');
-            console.log(response);
+          .then(response => {
+            console.log('document add response ', response);
           })
-          .catch(function(error) {
-            console.log(error);
-            console.log(error.message);
-          });*/
+          .catch(error => {
+            console.log('document add error ', error);
+          });
+      });
+
     event.preventDefault();
   }
   deletefile(name) {
